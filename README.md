@@ -1,6 +1,6 @@
 # ColabBridge
 
-Connect any app or website to GPU compute running on Google Colab — in under 20 lines of Python.
+Connect any app or website to GPU compute running on Google Colab — in under 20 lines of Python
 
 ```
 Your App / Website
@@ -45,6 +45,7 @@ The registry is a tiny service you own and control. Deploy it to Railway in abou
 Your registry URL will look like: `https://colabbridge-registry-production.up.railway.app`
 
 > **Alternative — deploy via Railway CLI:**
+>
 > ```bash
 > npm install -g @railway/cli
 > railway login
@@ -100,46 +101,47 @@ bridge.run(warmup=load)
 
 ```html
 <script>
-class ColabBridgeClient {
-  constructor(registryUrl) {
-    this.registryUrl = registryUrl;
-    this.serverUrl = null;
-  }
-  async getServerUrl() {
-    while (true) {
-      try {
-        const r = await fetch(`${this.registryUrl}/server-url`);
-        if (r.ok) return (await r.json()).url;
-      } catch {}
-      await new Promise(res => setTimeout(res, 4000));
+  class ColabBridgeClient {
+    constructor(registryUrl) {
+      this.registryUrl = registryUrl;
+      this.serverUrl = null;
+    }
+    async getServerUrl() {
+      while (true) {
+        try {
+          const r = await fetch(`${this.registryUrl}/server-url`);
+          if (r.ok) return (await r.json()).url;
+        } catch {}
+        await new Promise(res => setTimeout(res, 4000));
+      }
+    }
+    async post(path, body) {
+      if (!this.serverUrl) this.serverUrl = await this.getServerUrl();
+      const r = await fetch(this.serverUrl + path, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+      });
+      return r.json();
     }
   }
-  async post(path, body) {
-    if (!this.serverUrl) this.serverUrl = await this.getServerUrl();
-    const r = await fetch(this.serverUrl + path, {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body)
-    });
-    return r.json();
-  }
-}
 
-const client = new ColabBridgeClient('https://your-registry.up.railway.app');
-const result = await client.post('/classify', { image_b64: '...' });
-console.log(result.predictions); // [{label: "cat", score: 0.92}, ...]
+  const client = new ColabBridgeClient('https://your-registry.up.railway.app');
+  const result = await client.post('/classify', { image_b64: '...' });
+  console.log(result.predictions); // [{label: "cat", score: 0.92}, ...]
 </script>
 ```
 
 Or install the npm package:
+
 ```bash
 npm install colabbridge-client
 ```
 
 ```typescript
-import { ColabBridgeClient } from 'colabbridge-client'
+import { ColabBridgeClient } from "colabbridge-client";
 
-const client = new ColabBridgeClient('https://your-registry.up.railway.app')
-const result = await client.post('/classify', { image_b64: imageB64 })
+const client = new ColabBridgeClient("https://your-registry.up.railway.app");
+const result = await client.post("/classify", { image_b64: imageB64 });
 ```
 
 ---
@@ -149,6 +151,7 @@ const result = await client.post('/classify', { image_b64: imageB64 })
 For frame-by-frame streaming (webcam, video, sensors):
 
 **Server:**
+
 ```python
 @bridge.websocket("/ws")
 def process_frame(data: bytes) -> dict:
@@ -160,16 +163,17 @@ bridge.run()
 ```
 
 **Client:**
-```typescript
-const client = new ColabBridgeClient('https://your-registry.up.railway.app')
-await client.connect('/ws')
 
-client.onMessage(result => {
-  console.log(result.output)
-})
+```typescript
+const client = new ColabBridgeClient("https://your-registry.up.railway.app");
+await client.connect("/ws");
+
+client.onMessage((result) => {
+  console.log(result.output);
+});
 
 // Send a JPEG frame
-client.sendBytes(jpegBytes)
+client.sendBytes(jpegBytes);
 ```
 
 ---
@@ -187,18 +191,18 @@ bridge = ColabBridge(
 )
 ```
 
-| Method | Description |
-|---|---|
-| `@bridge.websocket(path)` | Register a `bytes → dict` function as a WebSocket endpoint |
-| `@bridge.post(path)` | Register a typed function as an HTTP POST endpoint |
+| Method                    | Description                                                                                                                                            |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@bridge.websocket(path)` | Register a `bytes → dict` function as a WebSocket endpoint                                                                                             |
+| `@bridge.post(path)`      | Register a typed function as an HTTP POST endpoint                                                                                                     |
 | `bridge.run(warmup=None)` | Start server + tunnel + register URL. `warmup` runs on the inference thread before accepting requests — use for model loading and torch.compile warmup |
 
 ### Built-in endpoints (always available)
 
-| Endpoint | Description |
-|---|---|
+| Endpoint      | Description                                |
+| ------------- | ------------------------------------------ |
 | `GET /health` | `{status, uptime_s, requests, public_url}` |
-| `GET /stats` | `{uptime_s, requests, rps}` |
+| `GET /stats`  | `{uptime_s, requests, rps}`                |
 
 ### `ColabBridgeClient` (JS/TS)
 
@@ -228,12 +232,12 @@ url = client.get_url()                               # GET current URL
 
 ## Registry API
 
-| Endpoint | Method | Description |
-|---|---|---|
-| `/server-url` | `POST ?url=...&token=...` | Register server URL |
-| `/server-url` | `GET` | Get current URL |
-| `/server-url` | `DELETE ?token=...` | Clear URL |
-| `/health` | `GET` | Liveness + whether a URL is registered |
+| Endpoint      | Method                    | Description                            |
+| ------------- | ------------------------- | -------------------------------------- |
+| `/server-url` | `POST ?url=...&token=...` | Register server URL                    |
+| `/server-url` | `GET`                     | Get current URL                        |
+| `/server-url` | `DELETE ?token=...`       | Clear URL                              |
+| `/health`     | `GET`                     | Liveness + whether a URL is registered |
 
 Set `REGISTRY_TOKEN` env var on the registry to enable token auth. Leave unset to disable.
 
@@ -241,12 +245,13 @@ Set `REGISTRY_TOKEN` env var on the registry to enable token auth. Leave unset t
 
 ## Examples
 
-| Example | Description |
-|---|---|
-| [`examples/echo/`](examples/echo/) | WebSocket echo — no GPU needed |
+| Example                                                    | Description                                         |
+| ---------------------------------------------------------- | --------------------------------------------------- |
+| [`examples/echo/`](examples/echo/)                         | WebSocket echo — no GPU needed                      |
 | [`examples/image_classifier/`](examples/image_classifier/) | ResNet-50 ImageNet classifier with drag-drop web UI |
 
 Each example has:
+
 - `colab_server.ipynb` — open in Colab, set your registry URL, run
 - `server.py` — same code as a plain Python script
 - `web/index.html` — standalone demo page (no build step)
