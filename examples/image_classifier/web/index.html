@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ColabBridge Image Classifier</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem; }
+    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-bottom: 2rem; }
+    .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; width: 100%; max-width: 560px; }
+    label { display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 0.375rem; }
+    input[type="text"] { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 0.6rem 0.9rem; color: #e2e8f0; font-size: 0.95rem; margin-bottom: 0.75rem; }
+    input[type="text"]:focus { outline: none; border-color: #6366f1; }
+    .status { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: #64748b; margin-bottom: 1.25rem; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #64748b; flex-shrink: 0; }
+    .dot.ready { background: #22c55e; }
+    .dot.loading { background: #f59e0b; animation: pulse 1s infinite; }
+    .dot.error { background: #ef4444; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .drop-zone { border: 2px dashed #334155; border-radius: 10px; padding: 2.5rem 1rem; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; margin-bottom: 1.25rem; }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: #6366f1; background: rgba(99,102,241,0.06); }
+    .drop-zone .icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .drop-zone p { color: #64748b; font-size: 0.875rem; }
+    .drop-zone p span { color: #818cf8; text-decoration: underline; cursor: pointer; }
+    #fileInput { display: none; }
+    #preview { width: 100%; border-radius: 8px; margin-bottom: 1.25rem; display: none; max-height: 260px; object-fit: contain; background: #0f172a; }
+    button { width: 100%; background: #6366f1; color: #fff; border: none; border-radius: 8px; padding: 0.7rem; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.15s; margin-bottom: 1rem; }
+    button:hover { background: #4f46e5; }
+    button:disabled { background: #334155; cursor: not-allowed; }
+    .results { display: flex; flex-direction: column; gap: 0.5rem; }
+    .result-row { display: flex; align-items: center; gap: 0.75rem; }
+    .result-label { font-size: 0.875rem; min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .result-bar-wrap { width: 120px; height: 6px; background: #1e293b; border-radius: 3px; flex-shrink: 0; }
+    .result-bar { height: 100%; border-radius: 3px; background: #6366f1; }
+    .result-score { font-size: 0.75rem; color: #94a3b8; min-width: 40px; text-align: right; }
+    .spinner { border: 3px solid #334155; border-top-color: #6366f1; border-radius: 50%; width: 20px; height: 20px; animation: spin 0.7s linear infinite; margin: 0 auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <h1>ColabBridge Image Classifier</h1>
+  <p class="subtitle">ResNet-50 ImageNet classification running on Colab T4 GPU</p>
+
+  <div class="card">
+    <label>Registry URL</label>
+    <input type="text" id="registryUrl" placeholder="https://your-registry.up.railway.app" />
+
+    <div class="status">
+      <div class="dot" id="dot"></div>
+      <span id="statusText">Enter registry URL and click Connect</span>
+    </div>
+
+    <button id="connectBtn">Connect to Colab Server</button>
+
+    <div class="drop-zone" id="dropZone">
+      <div class="icon">🖼️</div>
+      <p>Drag & drop an image here<br/>or <span id="browseLink">browse</span></p>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" />
+
+    <img id="preview" alt="preview" />
+
+    <button id="classifyBtn" disabled>Classify Image</button>
+
+    <div class="results" id="results"></div>
+  </div>
+
+  <script>
+    const dot = document.getElementById('dot');
+    const statusText = document.getElementById('statusText');
+    const connectBtn = document.getElementById('connectBtn');
+    const classifyBtn = document.getElementById('classifyBtn');
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const preview = document.getElementById('preview');
+    const results = document.getElementById('results');
+    const registryInput = document.getElementById('registryUrl');
+
+    let serverUrl = null;
+    let imageB64 = null;
+
+    // ── Registry fetch ────────────────────────────────────────────────────
+
+    async function getServerUrl(registryUrl) {
+      setStatus('loading', 'Fetching server URL from registry...');
+      const deadline = Date.now() + 300_000;
+      while (Date.now() < deadline) {
+        try {
+          const res = await fetch(`${registryUrl}/server-url`);
+          if (res.ok) return (await res.json()).url;
+        } catch {}
+        await sleep(4000);
+      }
+      throw new Error('Registry timed out');
+    }
+
+    connectBtn.addEventListener('click', async () => {
+      const reg = registryInput.value.trim();
+      if (!reg) { setStatus('error', 'Enter a registry URL first'); return; }
+      try {
+        serverUrl = await getServerUrl(reg);
+        setStatus('ready', `Connected — server at ${serverUrl}`);
+      } catch (e) {
+        setStatus('error', 'Failed: ' + e.message);
+      }
+    });
+
+    // ── Image handling ────────────────────────────────────────────────────
+
+    document.getElementById('browseLink').addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) loadImage(file);
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) loadImage(fileInput.files[0]);
+    });
+
+    function loadImage(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const dataUrl = e.target.result;
+        preview.src = dataUrl;
+        preview.style.display = 'block';
+        // Strip the data:image/...;base64, prefix
+        imageB64 = dataUrl.split(',')[1];
+        classifyBtn.disabled = !serverUrl;
+        results.innerHTML = '';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // ── Classification ────────────────────────────────────────────────────
+
+    classifyBtn.addEventListener('click', async () => {
+      if (!serverUrl || !imageB64) return;
+      classifyBtn.disabled = true;
+      results.innerHTML = '<div class="spinner"></div>';
+
+      try {
+        const url = serverUrl.replace(/^wss?:\/\//, m => m.startsWith('wss') ? 'https://' : 'http://') + '/classify';
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_b64: imageB64, top_k: 5 }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderResults(data.predictions);
+      } catch (e) {
+        results.innerHTML = `<p style="color:#f87171;font-size:0.85rem;">Error: ${e.message}</p>`;
+      } finally {
+        classifyBtn.disabled = false;
+      }
+    });
+
+    function renderResults(predictions) {
+      results.innerHTML = '';
+      const maxScore = predictions[0]?.score ?? 1;
+      predictions.forEach(p => {
+        const pct = Math.round((p.score / maxScore) * 100);
+        results.insertAdjacentHTML('beforeend', `
+          <div class="result-row">
+            <span class="result-label">${p.label}</span>
+            <div class="result-bar-wrap"><div class="result-bar" style="width:${pct}%"></div></div>
+            <span class="result-score">${(p.score * 100).toFixed(1)}%</span>
+          </div>
+        `);
+      });
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    function setStatus(state, text) {
+      dot.className = 'dot ' + ({ ready: 'ready', loading: 'loading', error: 'error' }[state] ?? '');
+      statusText.textContent = text;
+      if (state === 'ready' && imageB64) classifyBtn.disabled = false;
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+  </script>
+</body>
+</html>

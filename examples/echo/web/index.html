@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ColabBridge Echo Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem; }
+    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-bottom: 2rem; }
+    .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; width: 100%; max-width: 560px; }
+    label { display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 0.375rem; }
+    input[type="text"] { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 0.6rem 0.9rem; color: #e2e8f0; font-size: 0.95rem; margin-bottom: 0.75rem; }
+    input[type="text"]:focus { outline: none; border-color: #6366f1; }
+    .row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    button { background: #6366f1; color: #fff; border: none; border-radius: 8px; padding: 0.6rem 1.25rem; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+    button:hover { background: #4f46e5; }
+    button:disabled { background: #334155; cursor: not-allowed; }
+    .status { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: #64748b; margin-bottom: 1.25rem; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #64748b; }
+    .dot.connected { background: #22c55e; }
+    .dot.connecting { background: #f59e0b; animation: pulse 1s infinite; }
+    .dot.error { background: #ef4444; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .log { background: #0f172a; border-radius: 8px; padding: 0.75rem; font-family: monospace; font-size: 0.8rem; height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.35rem; }
+    .log-entry { padding: 0.25rem 0.5rem; border-radius: 4px; }
+    .log-entry.sent { color: #818cf8; }
+    .log-entry.recv { color: #34d399; }
+    .log-entry.info { color: #64748b; }
+    .log-entry.error { color: #f87171; }
+    a { color: #818cf8; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <h1>ColabBridge Echo Demo</h1>
+  <p class="subtitle">WebSocket echo — type a message, see it reflected from Colab</p>
+
+  <div class="card">
+    <label>Registry URL</label>
+    <input type="text" id="registryUrl" placeholder="https://your-registry.up.railway.app" />
+
+    <div class="status">
+      <div class="dot" id="dot"></div>
+      <span id="statusText">Disconnected</span>
+    </div>
+
+    <div class="row">
+      <input type="text" id="msgInput" placeholder="Type a message..." style="margin-bottom:0; flex:1;" />
+      <button id="sendBtn" disabled>Send</button>
+    </div>
+    <button id="connectBtn" style="width:100%; margin-bottom:1rem;">Connect</button>
+
+    <label>Log</label>
+    <div class="log" id="log"></div>
+  </div>
+
+  <script>
+    // Inline ColabBridgeClient (no npm needed for this demo)
+    class ColabBridgeClient {
+      constructor(registryUrl) {
+        this.registryUrl = registryUrl.replace(/\/$/, '');
+        this.serverUrl = null;
+        this.ws = null;
+        this.handlers = new Map();
+        this.statusHandlers = new Map();
+        this.shouldReconnect = false;
+      }
+
+      async getServerUrl() {
+        while (true) {
+          try {
+            const res = await fetch(`${this.registryUrl}/server-url`);
+            if (res.ok) return (await res.json()).url;
+          } catch {}
+          await new Promise(r => setTimeout(r, 3000));
+        }
+      }
+
+      async connect(path = '/ws') {
+        this.currentPath = path;
+        this.shouldReconnect = true;
+        return this._connect();
+      }
+
+      async _connect() {
+        this._notify('connecting');
+        if (!this.serverUrl) this.serverUrl = await this.getServerUrl();
+        const wsUrl = this.serverUrl.replace(/^https?:\/\//, m => m.startsWith('https') ? 'wss://' : 'ws://') + this.currentPath;
+        return new Promise((resolve, reject) => {
+          const ws = new WebSocket(wsUrl);
+          this.ws = ws;
+          ws.onopen = () => { this._notify('connected'); resolve(); };
+          ws.onmessage = e => {
+            let data = e.data;
+            try { data = JSON.parse(data); } catch {}
+            this.handlers.forEach(h => h(data));
+          };
+          ws.onerror = err => { this._notify('error'); reject(err); };
+          ws.onclose = () => {
+            this._notify('disconnected');
+            if (this.shouldReconnect) {
+              this.serverUrl = null;
+              setTimeout(() => this._connect(), 3000);
+            }
+          };
+        });
+      }
+
+      onMessage(h) { const id = Math.random().toString(36).slice(2); this.handlers.set(id, h); return () => this.handlers.delete(id); }
+      onStatus(h) { const id = Math.random().toString(36).slice(2); this.statusHandlers.set(id, h); return () => this.statusHandlers.delete(id); }
+      send(data) { if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(data); }
+      disconnect() { this.shouldReconnect = false; this.ws?.close(); }
+      _notify(s) { this.statusHandlers.forEach(h => h(s)); }
+    }
+
+    // UI wiring
+    const log = document.getElementById('log');
+    const dot = document.getElementById('dot');
+    const statusText = document.getElementById('statusText');
+    const sendBtn = document.getElementById('sendBtn');
+    const connectBtn = document.getElementById('connectBtn');
+    const msgInput = document.getElementById('msgInput');
+    const registryInput = document.getElementById('registryUrl');
+
+    function addLog(text, type = 'info') {
+      const el = document.createElement('div');
+      el.className = `log-entry ${type}`;
+      el.textContent = text;
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    let client = null;
+
+    connectBtn.addEventListener('click', async () => {
+      const url = registryInput.value.trim();
+      if (!url) { addLog('Enter a registry URL first.', 'error'); return; }
+      if (client) { client.disconnect(); client = null; }
+
+      client = new ColabBridgeClient(url);
+
+      client.onStatus(s => {
+        dot.className = 'dot ' + (s === 'connected' ? 'connected' : s === 'connecting' ? 'connecting' : s === 'error' ? 'error' : '');
+        statusText.textContent = { connected: 'Connected', connecting: 'Connecting...', disconnected: 'Disconnected', error: 'Error' }[s] || s;
+        sendBtn.disabled = s !== 'connected';
+        if (s === 'connecting') addLog('Fetching server URL from registry...', 'info');
+        if (s === 'connected') addLog('Connected to Colab server.', 'info');
+        if (s === 'disconnected') addLog('Disconnected. Reconnecting...', 'info');
+      });
+
+      client.onMessage(data => {
+        addLog('← ' + JSON.stringify(data), 'recv');
+      });
+
+      try {
+        await client.connect('/ws');
+      } catch (e) {
+        addLog('Connection failed: ' + e.message, 'error');
+      }
+    });
+
+    sendBtn.addEventListener('click', () => {
+      const msg = msgInput.value.trim();
+      if (!msg) return;
+      addLog('→ ' + msg, 'sent');
+      client?.send(new TextEncoder().encode(msg));
+      msgInput.value = '';
+    });
+
+    msgInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') sendBtn.click();
+    });
+  </script>
+</body>
+</html>
