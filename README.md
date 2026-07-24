@@ -18,7 +18,7 @@ Build AI applications without deploying servers. Run your model in Google Colab 
 
 ---
 
-## ✨ Why Colab Bridge?
+## Why Colab Bridge?
 
 Deploying an AI model usually means learning cloud platforms, configuring servers, exposing ports, and managing infrastructure.
 
@@ -41,20 +41,20 @@ Google Colab
 
 ---
 
-# ⚡ Features
+## Features
 
-- 🚀 Turn notebooks into REST APIs
-- 🌐 Automatic public URL using Cloudflare Tunnel
-- 🔍 Automatic server discovery through Registry
-- 📦 Simple Python decorators
-- 💻 JavaScript client SDK
-- 🔄 Handles changing Colab URLs automatically
-- 🎯 Built with FastAPI
-- ❤️ Completely open source
+- Turn notebooks into REST APIs
+- Automatic public URL using Cloudflare Tunnel
+- Automatic server discovery through Registry
+- Simple Python decorators
+- JavaScript client SDK
+- Handles changing Colab URLs automatically
+- Built with FastAPI
+- Completely open source
 
 ---
 
-# 💡 What can you build?
+## What can you build?
 
 Colab Bridge works with almost any Python model.
 
@@ -73,9 +73,9 @@ If your model runs in Colab, it can become an API.
 
 ---
 
-# 🏃 Quick Start
+## Quick Start
 
-## 1. Clone the repository
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/SyedShikabKamran/Colab-Brigde.git
@@ -84,7 +84,7 @@ cd Colab-Brigde
 
 ---
 
-## 2. Install
+### 2. Install
 
 ```bash
 pip install -e server
@@ -92,7 +92,7 @@ pip install -e server
 
 ---
 
-## 3. Create your API
+### 3. Create your API
 
 ```python
 from colabbridge import Bridge
@@ -110,7 +110,7 @@ bridge.run()
 
 ---
 
-## 4. Run inside Google Colab
+### 4. Run inside Google Colab
 
 Once started, Colab Bridge automatically
 
@@ -123,7 +123,7 @@ No manual networking required.
 
 ---
 
-## 5. Call your API
+### 5. Call your API
 
 ```python
 import requests
@@ -140,7 +140,7 @@ Or use the included JavaScript client.
 
 ---
 
-# 🏗 How it works
+## How it works
 
 ```
                  Client
@@ -169,7 +169,7 @@ The Registry keeps track of the latest public URL, so your clients continue work
 
 ---
 
-# 📁 Repository Structure
+## Repository Structure
 
 ```
 clients/
@@ -187,7 +187,7 @@ examples/
 
 ---
 
-# 📚 Examples
+## Examples
 
 Included examples:
 
@@ -198,7 +198,7 @@ More examples are welcome through community contributions.
 
 ---
 
-# 🤝 Contributing
+## Contributing
 
 Contributions of all sizes are welcome.
 
@@ -215,7 +215,7 @@ Feel free to open an Issue or Pull Request.
 
 ---
 
-# ⭐ Support the Project
+## Support the Project
 
 If Colab Bridge helps your project,
 
