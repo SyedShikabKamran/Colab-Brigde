@@ -27,32 +27,49 @@ Deploying an AI model usually means learning cloud platforms, configuring server
 Simply write your inference function, run your notebook, and your model becomes a public API.
 
 ```
-Google Colab
-      │
-      ▼
- Colab Bridge
-      │
-      ▼
- Public HTTPS API
-      │
-      ▼
- Web • Mobile • Desktop • Python
+             Google Colab
+                  │
+                  ▼
+             Colab Bridge
+                  │
+                  ▼
+           Public HTTPS API
+                  │
+                  ▼
+     Web • Mobile • Desktop • Python
 ```
-
----
 
 ## Features
 
-- Turn notebooks into REST APIs
-- Automatic public URL using Cloudflare Tunnel
-- Automatic server discovery through Registry
-- Simple Python decorators
-- JavaScript client SDK
-- Handles changing Colab URLs automatically
-- Built with FastAPI
-- Completely open source
+- 🚀 Turn notebooks into REST APIs
+- 🌐 Automatic public URL using Cloudflare Tunnel
+- 🔍 Automatic server discovery through Registry
+- 🪄 Simple Python decorators
+- 📦 JavaScript client SDK
+- 🔄 Handles changing Colab URLs automatically
+- ⚡ Built with FastAPI
+- ❤️ Completely open source
 
 ---
+
+## Architecture
+
+```
+                  Google Colab
+                       │
+                       ▼
+             Colab Bridge Server
+                       │
+                       ▼
+         Cloudflare Tunnel (HTTPS)
+                       │
+                       ▼
+          Railway Registry Server
+                       │
+                       ▼
+      Web • Mobile • Desktop • Python
+```
+
 
 ## What can you build?
 
@@ -73,7 +90,7 @@ If your model runs in Colab, it can become an API.
 
 ---
 
-## Quick Start
+# Quick Start
 
 ### 1. Clone the repository
 
@@ -84,7 +101,7 @@ cd Colab-Brigde
 
 ---
 
-### 2. Install
+### 2. Install Colab Bridge
 
 ```bash
 pip install -e server
@@ -92,7 +109,35 @@ pip install -e server
 
 ---
 
-### 3. Create your API
+### 3. Deploy the Registry
+
+Deploy the **`registry/`** directory to Railway.
+
+After deployment, Railway will generate a URL similar to:
+
+```text
+https://your-registry.up.railway.app
+```
+
+This Registry keeps track of your active Colab server so your applications can always discover the latest API endpoint.
+
+---
+
+### 4. Configure your Colab Notebook
+
+Add your Registry URL before starting Colab Bridge.
+
+```python
+import os
+
+os.environ["REGISTRY_URL"] = "https://your-registry.up.railway.app"
+```
+
+This only needs to be configured once for your project.
+
+---
+
+### 5. Create your API
 
 ```python
 from colabbridge import Bridge
@@ -110,68 +155,82 @@ bridge.run()
 
 ---
 
-### 4. Run inside Google Colab
+### 6. Run inside Google Colab
 
-Once started, Colab Bridge automatically
+Once started, Colab Bridge automatically:
 
 - Starts a FastAPI server
-- Opens a Cloudflare Tunnel
-- Registers the public URL
+- Creates a Cloudflare Tunnel
+- Generates a public HTTPS endpoint
+- Registers the endpoint with your Railway Registry
 - Waits for incoming requests
 
-No manual networking required.
+No manual networking or tunnel configuration required.
 
 ---
 
-### 5. Call your API
+### 7. Access your API
+
+First, ask the Registry for the active Colab server.
 
 ```python
 import requests
 
+registry = "https://your-registry.up.railway.app"
+
+server = requests.get(
+    f"{registry}/server-url"
+).json()["url"]
+
 response = requests.post(
-    "https://your-server/predict",
-    files={"image": open("cat.jpg","rb")}
+    f"{server}/predict",
+    files={"image": open("cat.jpg", "rb")}
 )
 
 print(response.json())
 ```
 
-Or use the included JavaScript client.
+Or simply use the included JavaScript SDK, which automatically discovers the active server.
 
 ---
 
 ## How it works
 
 ```
-                 Client
-                    │
-             HTTP Request
+             Notebook Starts
                     │
                     ▼
-            Registry Server
-                    │
-     Finds active Colab session
+         FastAPI starts in Colab
                     │
                     ▼
-          Cloudflare Tunnel
+     Cloudflare creates public URL
                     │
                     ▼
-         FastAPI inside Colab
+   Register URL with Railway Registry
                     │
                     ▼
-             Your AI Model
+      Client requests active server
                     │
                     ▼
-              JSON Response
+       Registry returns latest URL
+                    │
+                    ▼
+      Client sends request to Colab
+                    │
+                    ▼
+           AI Model processes data
+                    │
+                    ▼
+            JSON response returned
 ```
 
-The Registry keeps track of the latest public URL, so your clients continue working even when Google Colab creates a new tunnel.
+The Registry stores the latest Cloudflare Tunnel URL created by your notebook. Whenever your application starts, it asks the Registry for the current server address before sending requests. If Google Colab disconnects and creates a new tunnel, clients automatically discover the new endpoint without any code changes.
 
 ---
 
 ## Repository Structure
 
-```
+```text
 clients/
     JavaScript SDK
 
@@ -179,10 +238,10 @@ server/
     Python Bridge Library
 
 registry/
-    URL Registry Service
+    Railway Registry Service
 
 examples/
-    Working example projects
+    Example Projects
 ```
 
 ---
@@ -202,14 +261,15 @@ More examples are welcome through community contributions.
 
 Contributions of all sizes are welcome.
 
-Ideas include:
+Some ideas:
 
-- Additional language SDKs
-- Authentication
-- WebSocket streaming
-- Better deployment options
-- Example projects
-- Documentation improvements
+- 🌍 Additional language SDKs
+- 🔐 Authentication
+- 📡 WebSocket streaming
+- 🐳 Docker deployment
+- ☁️ Additional cloud providers
+- 📚 More example projects
+- 📝 Documentation improvements
 
 Feel free to open an Issue or Pull Request.
 
@@ -217,7 +277,7 @@ Feel free to open an Issue or Pull Request.
 
 ## Support the Project
 
-If Colab Bridge helps your project,
+If Colab Bridge helps your project:
 
 ⭐ Star the repository
 
@@ -225,13 +285,16 @@ If Colab Bridge helps your project,
 
 💡 Suggest features
 
-🤝 Contribute code
+🤝 Contribute improvements
 
-Every contribution helps improve the project for the community.
+Every contribution helps make Colab Bridge better for the open source community.
 
 ---
 
 <div align="center">
 
-###### Build your model once. Use it anywhere.
+### Build your model once. Use it anywhere.
+
+Made with ❤️ for the AI & Open Source community.
+
 </div>
