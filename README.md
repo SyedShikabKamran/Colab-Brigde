@@ -293,8 +293,5 @@ Every contribution helps make Colab Bridge better for the open source community.
 
 <div align="center">
 
-### Build your model once. Use it anywhere.
-
-Made with ❤️ for the AI & Open Source community.
-
+###### Build your model once. Use it anywhere.
 </div>
